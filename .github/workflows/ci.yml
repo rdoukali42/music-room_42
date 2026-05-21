@@ -22,25 +22,30 @@ jobs:
           cache: true
 
       - name: Download dependencies
-        working-directory: ./server
         run: go mod download
+        working-directory: ./server
+        if: hashFiles('server/go.mod') != ''
 
       - name: Build
-        working-directory: ./server
         run: go build ./...
+        working-directory: ./server
+        if: hashFiles('server/go.mod') != ''
 
       - name: Test
-        working-directory: ./server
         run: go test ./...
+        working-directory: ./server
+        if: hashFiles('server/go.mod') != ''
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       - name: Vet
-        working-directory: ./server
         run: go vet ./...
+        working-directory: ./server
+        if: hashFiles('server/go.mod') != ''
 
       - name: Staticcheck
         uses: dominikh/staticcheck-action@v1
+        if: hashFiles('server/go.mod') != ''
         with:
           version: latest
           working-directory: server

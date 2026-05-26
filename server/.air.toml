@@ -1,0 +1,11 @@
+[build]
+  cmd = "go build -o ./tmp/server ./cmd/main.go"
+  bin = "./tmp/server"
+  include_ext = ["go"]
+  exclude_dir = ["tmp", "migrations"]
+  delay = 500
+  poll = true
+  poll_interval = 1000
+
+[log]
+  time = false

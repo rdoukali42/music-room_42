@@ -27,7 +27,7 @@ jobs:
         if: hashFiles('server/go.mod') != ''
 
       - name: Build
-        run: go build ./...
+        run: go build -o /dev/null ./...
         working-directory: ./server
         if: hashFiles('server/go.mod') != ''
 

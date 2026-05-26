@@ -1,0 +1,5 @@
+.env
+server
+*.test
+*.out
+.git

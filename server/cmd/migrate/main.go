@@ -23,7 +23,7 @@ func main() {
 
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
-		databaseURL = "postgres://postgres:postgres@localhost:5432/music_room?sslmode=disable"
+		databaseURL = "postgres://postgres:postgres@localhost:5432/musicroom?sslmode=disable"
 	}
 
 	log.Printf("Connecting to database for migrations...")

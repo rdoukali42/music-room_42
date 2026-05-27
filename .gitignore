@@ -1,3 +1,4 @@
 subject/*
 server/.env
 server/bin/
+server/tmp/*

@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main, features]
+
+jobs:
+  build-and-test:
+    name: Build, Test & Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+        working-directory: ./server
+        if: hashFiles('server/go.mod') != ''
+
+      - name: Build
+        run: go build -o /dev/null ./...
+        working-directory: ./server
+        if: hashFiles('server/go.mod') != ''
+
+      - name: Test
+        run: go test ./...
+        working-directory: ./server
+        if: hashFiles('server/go.mod') != ''
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Vet
+        run: go vet ./...
+        working-directory: ./server
+        if: hashFiles('server/go.mod') != ''
+
+      - name: Staticcheck
+        uses: dominikh/staticcheck-action@v1
+        if: hashFiles('server/go.mod') != ''
+        with:
+          version: latest
+          working-directory: server

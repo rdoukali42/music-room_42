@@ -4,6 +4,7 @@ import 'package:music_room/features/track_vote/track_vote_screen.dart';
 import 'package:music_room/features/delegation/delegation_screen.dart';
 import 'package:music_room/features/playlist_editor/playlist_editor_screen.dart';
 import 'package:music_room/features/profile/profile_screen.dart';
+import 'package:music_room/features/profile/friends_screen.dart';
 
 final router = GoRouter(
   initialLocation: '/vote',
@@ -14,11 +15,40 @@ final router = GoRouter(
         GoRoute(path: '/vote', builder: (context, _) => const TrackVoteScreen()),
         GoRoute(path: '/delegation', builder: (context, _) => const DelegationScreen()),
         GoRoute(path: '/playlist', builder: (context, _) => const PlaylistEditorScreen()),
-        GoRoute(path: '/profile', builder: (context, _) => const ProfileScreen()),
+        GoRoute(
+          path: '/profile',
+          builder: (context, _) => const ProfileScreen(),
+          routes: [
+            GoRoute(
+              path: 'friends',
+              builder: (context, _) => const FriendsScreen(),
+            ),
+            GoRoute(
+              path: 'users/:id',
+              builder: (context, state) => _UserProfilePlaceholder(
+                userId: state.pathParameters['id']!,
+              ),
+            ),
+          ],
+        ),
       ],
     ),
   ],
 );
+
+class _UserProfilePlaceholder extends StatelessWidget {
+  final String userId;
+
+  const _UserProfilePlaceholder({required this.userId});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Profile')),
+      body: Center(child: Text('User profile — $userId')),
+    );
+  }
+}
 
 class AppShell extends StatelessWidget {
   const AppShell({super.key, required this.child});

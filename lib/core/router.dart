@@ -72,12 +72,11 @@ class AppShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: child,
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex(context),
-        type: BottomNavigationBarType.fixed,
-        onTap: (i) => context.go(_tabs[i].path),
-        items: _tabs
-            .map((t) => BottomNavigationBarItem(icon: Icon(t.icon), label: t.label))
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex(context),
+        onDestinationSelected: (i) => context.go(_tabs[i].path),
+        destinations: _tabs
+            .map((t) => NavigationDestination(icon: Icon(t.icon), label: t.label))
             .toList(),
       ),
     );

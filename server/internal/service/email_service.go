@@ -6,13 +6,15 @@ import (
 )
 
 type EmailService struct {
-	host string
-	port string
-	from string
+	host     string
+	port     string
+	from     string
+	user     string
+	password string
 }
 
-func NewEmailService(host, port, from string) *EmailService {
-	return &EmailService{host: host, port: port, from: from}
+func NewEmailService(host, port, from, user, password string) *EmailService {
+	return &EmailService{host: host, port: port, from: from, user: user, password: password}
 }
 
 func (s *EmailService) Send(to, subject, body string) error {
@@ -24,5 +26,11 @@ func (s *EmailService) Send(to, subject, body string) error {
 			"Content-Type: text/plain; charset=UTF-8\r\n" +
 			"\r\n" + body,
 	)
-	return smtp.SendMail(addr, nil, s.from, []string{to}, msg)
+
+	var auth smtp.Auth
+	if s.user != "" && s.password != "" {
+		auth = smtp.PlainAuth("", s.user, s.password, s.host)
+	}
+
+	return smtp.SendMail(addr, auth, s.from, []string{to}, msg)
 }

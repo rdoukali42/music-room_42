@@ -49,6 +49,8 @@ func main() {
 		getEnvOrDefault("SMTP_HOST", "mailpit"),
 		getEnvOrDefault("SMTP_PORT", "1025"),
 		getEnvOrDefault("SMTP_FROM", "noreply@musicroom.local"),
+		os.Getenv("SMTP_USER"),
+		os.Getenv("SMTP_PASSWORD"),
 	)
 	authSvc := service.NewAuthService(authRepo, emailSvc, getEnvOrDefault("APP_URL", "http://localhost:8081"))
 	authHandler := handler.NewAuthHandler(authSvc)
@@ -78,6 +80,7 @@ func setupRouter(authHandler *handler.AuthHandler) *gin.Engine {
 		{
 			auth.POST("/register", authHandler.Register)
 			auth.GET("/verify-email", authHandler.VerifyEmail)
+			auth.POST("/resend-verification", authHandler.ResendVerification)
 			auth.POST("/forgot-password", authHandler.ForgotPassword)
 			auth.POST("/reset-password", authHandler.ResetPassword)
 		}

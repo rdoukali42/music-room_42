@@ -63,6 +63,28 @@ func (h *AuthHandler) VerifyEmail(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "email verified successfully"})
 }
 
+func (h *AuthHandler) ResendVerification(c *gin.Context) {
+	var body struct {
+		Email string `json:"email" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "email is required", "code": "INVALID_REQUEST"})
+		return
+	}
+
+	if err := h.auth.ResendVerification(c.Request.Context(), body.Email); err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidEmail):
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "invalid email address", "code": "INVALID_EMAIL"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "request failed", "code": "INTERNAL_ERROR"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "if that email is registered and unverified, a new verification link has been sent"})
+}
+
 func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 	var body struct {
 		Email string `json:"email" binding:"required"`

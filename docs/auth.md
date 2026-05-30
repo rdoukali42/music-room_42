@@ -56,6 +56,23 @@ Expected response `200`:
 {"message": "email verified successfully"}
 ```
 
+### Resend verification email
+
+Use this if the verification email was never received or the link expired.
+
+```bash
+curl -X POST http://localhost:8081/api/v1/auth/resend-verification \
+  -H "Content-Type: application/json" \
+  -d '{"email":"you@example.com"}'
+```
+
+Expected response `200`:
+```json
+{"message": "if that email is registered and unverified, a new verification link has been sent"}
+```
+
+Go to **http://localhost:8025** - a fresh verification email will appear.
+
 ### Forgot password
 
 ```bash
@@ -94,6 +111,20 @@ Expected response `200`:
 | `INVALID_TOKEN` | Token not found or already used |
 | `TOKEN_EXPIRED` | Reset link older than 1 hour |
 | `TOKEN_USED` | Reset link already used once |
+
+## Using a real SMTP provider
+
+By default `SMTP_USER` and `SMTP_PASSWORD` are empty and the server uses Mailpit with no authentication. To connect to a real provider (SendGrid, Postmark, etc.) set those two vars in `server/.env`:
+
+```
+SMTP_HOST=smtp.sendgrid.net
+SMTP_PORT=587
+SMTP_FROM=noreply@yourdomain.com
+SMTP_USER=apikey
+SMTP_PASSWORD=your-api-key
+```
+
+When both are set the server switches to `PLAIN` auth automatically.
 
 ## Stop the stack
 

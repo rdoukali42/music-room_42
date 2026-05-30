@@ -37,10 +37,49 @@ func (r *AuthRepository) GetUserByEmail(ctx context.Context, email string) (*mod
 	return user, err
 }
 
+func (r *AuthRepository) CreateUserWithVerification(ctx context.Context, email, passwordHash string, token uuid.UUID) (*model.User, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	user := &model.User{}
+	err = tx.QueryRow(ctx,
+		`INSERT INTO users (email, password_hash) VALUES ($1, $2)
+		 RETURNING id, email, password_hash, is_verified, subscription_tier, created_at`,
+		email, passwordHash,
+	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.IsVerified, &user.SubscriptionTier, &user.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = tx.Exec(ctx,
+		`INSERT INTO email_verifications (user_id, token) VALUES ($1, $2)`,
+		user.ID, token,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
 func (r *AuthRepository) CreateEmailVerification(ctx context.Context, userID, token uuid.UUID) error {
 	_, err := r.pool.Exec(ctx,
 		`INSERT INTO email_verifications (user_id, token) VALUES ($1, $2)`,
 		userID, token,
+	)
+	return err
+}
+
+func (r *AuthRepository) DeleteEmailVerificationsForUser(ctx context.Context, userID uuid.UUID) error {
+	_, err := r.pool.Exec(ctx,
+		`DELETE FROM email_verifications WHERE user_id = $1`,
+		userID,
 	)
 	return err
 }

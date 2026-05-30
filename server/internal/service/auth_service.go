@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/mail"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -33,9 +34,22 @@ func NewAuthService(repo *repository.AuthRepository, emailSvc *EmailService, app
 	return &AuthService{repo: repo, emailSvc: emailSvc, appURL: appURL}
 }
 
+func normalizeEmail(raw string) (string, error) {
+	addr, err := mail.ParseAddress(strings.TrimSpace(raw))
+	if err != nil {
+		return "", ErrInvalidEmail
+	}
+	normalized := strings.ToLower(addr.Address)
+	if normalized != strings.ToLower(strings.TrimSpace(raw)) {
+		return "", ErrInvalidEmail
+	}
+	return normalized, nil
+}
+
 func (s *AuthService) Register(ctx context.Context, email, password string) error {
-	if _, err := mail.ParseAddress(email); err != nil {
-		return ErrInvalidEmail
+	normalized, err := normalizeEmail(email)
+	if err != nil {
+		return err
 	}
 	if len(password) < 8 {
 		return ErrWeakPassword
@@ -46,7 +60,8 @@ func (s *AuthService) Register(ctx context.Context, email, password string) erro
 		return fmt.Errorf("hash password: %w", err)
 	}
 
-	user, err := s.repo.CreateUser(ctx, email, string(hash))
+	token := uuid.New()
+	_, err = s.repo.CreateUserWithVerification(ctx, normalized, string(hash), token)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -55,14 +70,9 @@ func (s *AuthService) Register(ctx context.Context, email, password string) erro
 		return fmt.Errorf("create user: %w", err)
 	}
 
-	token := uuid.New()
-	if err := s.repo.CreateEmailVerification(ctx, user.ID, token); err != nil {
-		return fmt.Errorf("create verification token: %w", err)
-	}
-
 	link := fmt.Sprintf("%s/api/v1/auth/verify-email?token=%s", s.appURL, token)
 	body := fmt.Sprintf("Hi,\n\nVerify your Music Room account by clicking the link below:\n\n%s\n\nIf you did not create an account, you can ignore this email.\n", link)
-	if err := s.emailSvc.Send(email, "Verify your Music Room account", body); err != nil {
+	if err := s.emailSvc.Send(normalized, "Verify your Music Room account", body); err != nil {
 		return fmt.Errorf("send verification email: %w", err)
 	}
 
@@ -90,12 +100,49 @@ func (s *AuthService) VerifyEmail(ctx context.Context, tokenStr string) error {
 	return nil
 }
 
-func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
-	if _, err := mail.ParseAddress(email); err != nil {
-		return ErrInvalidEmail
+func (s *AuthService) ResendVerification(ctx context.Context, email string) error {
+	normalized, err := normalizeEmail(email)
+	if err != nil {
+		return err
 	}
 
-	user, err := s.repo.GetUserByEmail(ctx, email)
+	user, err := s.repo.GetUserByEmail(ctx, normalized)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		return fmt.Errorf("get user: %w", err)
+	}
+
+	if user.IsVerified {
+		return nil
+	}
+
+	if err := s.repo.DeleteEmailVerificationsForUser(ctx, user.ID); err != nil {
+		return fmt.Errorf("clear old tokens: %w", err)
+	}
+
+	token := uuid.New()
+	if err := s.repo.CreateEmailVerification(ctx, user.ID, token); err != nil {
+		return fmt.Errorf("create verification token: %w", err)
+	}
+
+	link := fmt.Sprintf("%s/api/v1/auth/verify-email?token=%s", s.appURL, token)
+	body := fmt.Sprintf("Hi,\n\nVerify your Music Room account by clicking the link below:\n\n%s\n\nIf you did not create an account, you can ignore this email.\n", link)
+	if err := s.emailSvc.Send(normalized, "Verify your Music Room account", body); err != nil {
+		return fmt.Errorf("send verification email: %w", err)
+	}
+
+	return nil
+}
+
+func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
+	normalized, err := normalizeEmail(email)
+	if err != nil {
+		return err
+	}
+
+	user, err := s.repo.GetUserByEmail(ctx, normalized)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
@@ -111,7 +158,7 @@ func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
 
 	link := fmt.Sprintf("%s/api/v1/auth/reset-password?token=%s", s.appURL, token)
 	body := fmt.Sprintf("Hi,\n\nReset your Music Room password by clicking the link below:\n\n%s\n\nThis link expires in 1 hour. If you did not request a password reset, you can ignore this email.\n", link)
-	if err := s.emailSvc.Send(email, "Reset your Music Room password", body); err != nil {
+	if err := s.emailSvc.Send(normalized, "Reset your Music Room password", body); err != nil {
 		return fmt.Errorf("send reset email: %w", err)
 	}
 

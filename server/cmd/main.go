@@ -6,9 +6,12 @@ import (
 	"os"
 	"time"
 
+	"music-room/internal/auth"
+	"music-room/internal/repository"
+
 	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 )
 
 var DBpool *pgxpool.Pool
@@ -45,11 +48,52 @@ func main() {
 	}
 	log.Println("Database connection verified")
 
+	// Repositories
+	userRepo := repository.NewPostgresUserRepository(DBpool)
+	tokenRepo := repository.NewPostgresRefreshTokenRepository(DBpool)
+
+	// Services
+	jwtService := auth.NewJWTService()
+	authMiddleware := auth.NewMiddleware(jwtService)
+
+	// Handlers
+	authHandler := auth.NewHandler(userRepo, tokenRepo, jwtService)
+
 	r := gin.Default()
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "UP"})
 	})
+
+	authGroup := r.Group("/auth")
+	{
+		authGroup.POST("/login", authHandler.Login)
+		authGroup.POST("/refresh", authHandler.Refresh)
+		authGroup.POST("/logout", authHandler.Logout)
+	}
+
+	apiGroup := r.Group("/api")
+	apiGroup.Use(authMiddleware.Authenticate())
+	{
+		apiGroup.GET("/profile", func(c *gin.Context) {
+			userID, _ := c.Get("user_id")
+			email, _ := c.Get("email")
+			tier, _ := c.Get("subscription_tier")
+			c.JSON(200, gin.H{
+				"user_id":           userID,
+				"email":            email,
+				"subscription_tier": tier,
+			})
+		})
+
+		apiGroup.GET("/users/:id", auth.RequireOwnership("id"), func(c *gin.Context) {
+			userID := c.Param("id")
+			c.JSON(200, gin.H{
+				"message": "Access granted to user resource",
+				"id":      userID,
+			})
+		})
+	}
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -60,3 +104,4 @@ func main() {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }
+

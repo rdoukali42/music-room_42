@@ -40,17 +40,31 @@ func main() {
 		log.Fatalf("Failed to create database pool: %v", err)
 	}
 	defer pool.Close()
-	
+
 	DBpool = pool
-	log.Println("Database connection established")
 	if err := DBpool.Ping(ctx); err != nil {
 		log.Fatalf("Failed to ping database: %v", err)
 	}
-	log.Println("Database connection verified")
+	log.Println("Database connection established")
+
+	r := setupRouter(DBpool)
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	if err := r.Run(":" + port); err != nil {
+		log.Fatalf("Failed to start server: %v", err)
+	}
+}
+
+func setupRouter(pool *pgxpool.Pool) *gin.Engine {
+	r := gin.Default()
 
 	// Repositories
-	userRepo := repository.NewPostgresUserRepository(DBpool)
-	tokenRepo := repository.NewPostgresRefreshTokenRepository(DBpool)
+	userRepo := repository.NewPostgresUserRepository(pool)
+	tokenRepo := repository.NewPostgresRefreshTokenRepository(pool)
 
 	// Services
 	jwtService := auth.NewJWTService()
@@ -58,8 +72,6 @@ func main() {
 
 	// Handlers
 	authHandler := auth.NewHandler(userRepo, tokenRepo, jwtService)
-
-	r := gin.Default()
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "UP"})
@@ -95,13 +107,5 @@ func main() {
 		})
 	}
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
-	if err := r.Run(":" + port); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
-	}
+	return r
 }
-

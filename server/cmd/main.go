@@ -6,10 +6,15 @@ import (
 	"os"
 	"time"
 
+	"music-room/internal/auth"
+	"music-room/internal/repository"
+
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
+
+var DBpool *pgxpool.Pool
 
 func main() {
 	if err := godotenv.Load(); err != nil {
@@ -36,12 +41,13 @@ func main() {
 	}
 	defer pool.Close()
 
-	if err := pool.Ping(ctx); err != nil {
+	DBpool = pool
+	if err := DBpool.Ping(ctx); err != nil {
 		log.Fatalf("Failed to ping database: %v", err)
 	}
 	log.Println("Database connection established")
 
-	r := setupRouter(pool)
+	r := setupRouter(DBpool)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -56,9 +62,50 @@ func main() {
 func setupRouter(pool *pgxpool.Pool) *gin.Engine {
 	r := gin.Default()
 
+	// Repositories
+	userRepo := repository.NewPostgresUserRepository(pool)
+	tokenRepo := repository.NewPostgresRefreshTokenRepository(pool)
+
+	// Services
+	jwtService := auth.NewJWTService()
+	authMiddleware := auth.NewMiddleware(jwtService)
+
+	// Handlers
+	authHandler := auth.NewHandler(userRepo, tokenRepo, jwtService)
+
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "UP"})
 	})
+
+	authGroup := r.Group("/auth")
+	{
+		authGroup.POST("/login", authHandler.Login)
+		authGroup.POST("/refresh", authHandler.Refresh)
+		authGroup.POST("/logout", authHandler.Logout)
+	}
+
+	apiGroup := r.Group("/api")
+	apiGroup.Use(authMiddleware.Authenticate())
+	{
+		apiGroup.GET("/profile", func(c *gin.Context) {
+			userID, _ := c.Get("user_id")
+			email, _ := c.Get("email")
+			tier, _ := c.Get("subscription_tier")
+			c.JSON(200, gin.H{
+				"user_id":           userID,
+				"email":            email,
+				"subscription_tier": tier,
+			})
+		})
+
+		apiGroup.GET("/users/:id", auth.RequireOwnership("id"), func(c *gin.Context) {
+			userID := c.Param("id")
+			c.JSON(200, gin.H{
+				"message": "Access granted to user resource",
+				"id":      userID,
+			})
+		})
+	}
 
 	return r
 }

@@ -7,11 +7,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 )
-
-var DBpool *pgxpool.Pool
 
 func main() {
 	if err := godotenv.Load(); err != nil {
@@ -37,19 +35,13 @@ func main() {
 		log.Fatalf("Failed to create database pool: %v", err)
 	}
 	defer pool.Close()
-	
-	DBpool = pool
-	log.Println("Database connection established")
-	if err := DBpool.Ping(ctx); err != nil {
+
+	if err := pool.Ping(ctx); err != nil {
 		log.Fatalf("Failed to ping database: %v", err)
 	}
-	log.Println("Database connection verified")
+	log.Println("Database connection established")
 
-	r := gin.Default()
-
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "UP"})
-	})
+	r := setupRouter(pool)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -59,4 +51,14 @@ func main() {
 	if err := r.Run(":" + port); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
+}
+
+func setupRouter(pool *pgxpool.Pool) *gin.Engine {
+	r := gin.Default()
+
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "UP"})
+	})
+
+	return r
 }
